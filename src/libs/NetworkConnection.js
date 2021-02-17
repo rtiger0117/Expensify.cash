@@ -71,6 +71,7 @@ function listenForReconnect() {
     // every two seconds and if the last time recorded is greater than 4 seconds
     // we know that the computer has been asleep.
     lastTime = (new Date()).getTime();
+    clearInterval(sleepTimer);
     sleepTimer = setInterval(() => {
         const currentTime = (new Date()).getTime();
         const isSkewed = currentTime > (lastTime + 4000);
@@ -87,6 +88,7 @@ function listenForReconnect() {
 function stopListeningForReconnect() {
     logInfo('[NetworkConnection] stopListeningForReconnect called', true);
     clearInterval(sleepTimer);
+    sleepTimer = null;
     if (unsubscribeFromNetInfo) {
         unsubscribeFromNetInfo();
         unsubscribeFromNetInfo = undefined;
@@ -103,6 +105,11 @@ function stopListeningForReconnect() {
  * @param {Function} callback
  */
 function onReconnect(callback) {
+    // I have no idea why but onReconnect is getting called multiple times at least on dev...
+    if (reconnectionCallbacks.length === 2) {
+        return;
+    }
+
     reconnectionCallbacks.push(callback);
 }
 

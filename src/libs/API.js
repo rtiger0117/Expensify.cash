@@ -158,6 +158,7 @@ function request(command, parameters = {}, type = 'post') {
                         return;
                     }
 
+                    console.debug('[API] authToken expired retrying request', {command});
                     handleExpiredAuthToken(command, parameters, type)
                         .then(resolve)
                         .catch(reject);

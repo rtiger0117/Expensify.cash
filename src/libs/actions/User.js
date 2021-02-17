@@ -8,8 +8,6 @@ function getBetas() {
     API.User_GetBetas().then((response) => {
         if (response.jsonCode === 200) {
             Onyx.set(ONYXKEYS.BETAS, response.betas);
-        } else {
-            console.error('Could not get betas', response);
         }
     });
 }

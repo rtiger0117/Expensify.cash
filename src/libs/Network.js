@@ -1,4 +1,5 @@
 import _ from 'underscore';
+import lodashGet from 'lodash.get';
 import Onyx from 'react-native-onyx';
 import HttpUtils from './HttpUtils';
 import NetworkConnection from './NetworkConnection';
@@ -51,6 +52,33 @@ function shouldMakeRequest(request) {
 }
 
 /**
+ * Checks to see if a request should be retried when the queue is "paused".
+ *
+ * @param {Object} request
+ * @param {String} request.command
+ * @param {Object} request.data
+ * @param {Boolean} request.data.doNotRetry
+ * @param {String} [request.data.returnValueList]
+ * @return {Boolean}
+ */
+function shouldRetry(request) {
+    const doNotRetry = lodashGet(request, 'data.doNotRetry', false);
+    const logParams = {command: request.command, doNotRetry, isQueuePaused};
+    const returnValueList = lodashGet(request, 'data.returnValueList');
+    if (returnValueList) {
+        logParams.returnValueList = returnValueList;
+    }
+
+    if (doNotRetry) {
+        console.debug('Skipping request that should not be re-tried: ', logParams);
+        return false;
+    }
+
+    console.debug('Skipping request and re-queueing: ', logParams);
+    return true;
+}
+
+/**
  * Process the networkRequestQueue by looping through the queue and attempting to make the requests
  */
 function processNetworkRequestQueue() {
@@ -86,7 +114,9 @@ function processNetworkRequestQueue() {
         // Some requests must be allowed to run even when the queue is paused e.g. an authentication request
         // that pauses the network queue while authentication happens, then unpauses it when it's done.
         if (!shouldMakeRequest(queuedRequest)) {
-            retryableRequests.push(queuedRequest);
+            if (shouldRetry(queuedRequest)) {
+                retryableRequests.push(queuedRequest);
+            }
             return;
         }
 
@@ -102,8 +132,17 @@ function processNetworkRequestQueue() {
         // Check to see if the queue has paused again. It's possible that a call to enhanceParameters()
         // has paused the queue and if this is the case we must return.
         if (!shouldMakeRequest(queuedRequest)) {
-            retryableRequests.push(queuedRequest);
+            if (shouldRetry(queuedRequest)) {
+                retryableRequests.push(queuedRequest);
+            }
             return;
+        }
+
+        if (queuedRequest.command !== 'Log') {
+            console.debug('Making request: ', {
+                command: queuedRequest.command,
+                returnValueList: lodashGet(queuedRequest, 'data.returnValueList'),
+            });
         }
 
         HttpUtils.xhr(queuedRequest.command, finalParameters, queuedRequest.type)
