@@ -30,6 +30,27 @@ Onyx.connect({
 });
 
 /**
+ * Checks to see if a request should be made.
+ *
+ * @param {Object} request
+ * @param {Object} request.data
+ * @param {Boolean} request.data.forceNetworkRequest
+ * @return {Boolean}
+ */
+function shouldMakeRequest(request) {
+    // These requests are always made even when the queue is paused
+    if (request.data.forceNetworkRequest === true) {
+        return true;
+    }
+
+    if (isQueuePaused) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
  * Process the networkRequestQueue by looping through the queue and attempting to make the requests
  */
 function processNetworkRequestQueue() {
@@ -58,12 +79,14 @@ function processNetworkRequestQueue() {
         return;
     }
 
+    // If a request can't run because the queue is paused then it should end up here so it can be retried.
+    const retryableRequests = [];
+
     _.each(networkRequestQueue, (queuedRequest) => {
         // Some requests must be allowed to run even when the queue is paused e.g. an authentication request
         // that pauses the network queue while authentication happens, then unpauses it when it's done.
-        const shouldSkipRequest = isQueuePaused && queuedRequest.data.forceNetworkRequest !== true;
-
-        if (shouldSkipRequest) {
+        if (!shouldMakeRequest(queuedRequest)) {
+            retryableRequests.push(queuedRequest);
             return;
         }
 
@@ -78,7 +101,8 @@ function processNetworkRequestQueue() {
 
         // Check to see if the queue has paused again. It's possible that a call to enhanceParameters()
         // has paused the queue and if this is the case we must return.
-        if (shouldSkipRequest) {
+        if (!shouldMakeRequest(queuedRequest)) {
+            retryableRequests.push(queuedRequest);
             return;
         }
 
@@ -87,7 +111,7 @@ function processNetworkRequestQueue() {
             .catch(queuedRequest.reject);
     });
 
-    networkRequestQueue = [];
+    networkRequestQueue = retryableRequests;
 }
 
 // Process our write queue very often
