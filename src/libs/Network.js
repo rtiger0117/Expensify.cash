@@ -111,6 +111,8 @@ function processNetworkRequestQueue() {
             .catch(queuedRequest.reject);
     });
 
+    // We clear the request queue at the end by setting the queue to retryableRequests which will either have some
+    // requests we want to retry or an empty array
     networkRequestQueue = retryableRequests;
 }
 
